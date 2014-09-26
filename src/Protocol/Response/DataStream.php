@@ -139,10 +139,14 @@ class DataStream {
 	 */
 	public function readList($valueType) {
 		$list = array();
-		$count = $this->readShort();
-		for ($i = 0; $i < $count; ++$i) {
-			$list[] = $this->readByType($valueType);
-		}
+        try {
+            $count = $this->readShort();
+        } catch (\Exception $ex) {
+            $count = 0;
+        }
+        for ($i = 0; $i < $count; ++$i) {
+            $list[] = $this->readByType($valueType, true);
+        }
 		return $list;
 	}
 
