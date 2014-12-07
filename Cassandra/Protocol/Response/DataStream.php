@@ -74,6 +74,7 @@ class DataStream {
 			$length = $this->readShort();
 			return unpack('l', strrev($this->read($length)))[1];
 		}
+
 		return unpack('l', strrev($this->read(4)))[1];
 	}
 
@@ -172,7 +173,7 @@ class DataStream {
 	 */
 	public function readBytes($isCollectionElement = false) {
 		if ($isCollectionElement)
-				$this->readShort();
+			$this->readShort();
 		$length = $this->readInt();
 		if($length === -1)
 			return null;
@@ -336,13 +337,82 @@ class DataStream {
 	 */
 	public function readDecimal($isCollectionElement = false) {
 		if ($isCollectionElement) {
-				$this->readShort();
+			$this->readShort();
 		}
 		$scale = $this->readInt();
 		$value = $this->readVarint($isCollectionElement);
 		$len = strlen($value);
 		return substr($value, 0, $len - $scale) . '.' . substr($value, $len - $scale);
 	}
+
+	/**
+	 * Read 64bit long
+	 *
+	 * @param bool $isCollectionElement
+	 * @return string
+	 */
+	public function readBigInt($isCollectionElement = false) {
+		if ($isCollectionElement) {
+			$length = $this->readShort();
+		} else {
+			$length = 8;
+		}
+		$data = $this->read($length);
+		$arr = unpack('N2', $data);
+
+		if (PHP_INT_SIZE == 4) {
+			$hi = $arr[1];
+			$lo = $arr[2];
+			$isNeg = $hi  < 0;
+			
+			// Check for a negative
+			if ($isNeg) {
+				$hi = ~$hi & (int)0xffffffff;
+				$lo = ~$lo & (int)0xffffffff;
+				
+				if ($lo == (int)0xffffffff) {	
+					$hi++;
+					$lo = 0;
+				} else {
+					$lo++;
+				}
+			}
+			
+			// Force 32bit words in excess of 2G to pe positive - we deal wigh sign
+			// explicitly below
+			if ($hi & (int)0x80000000) {
+				$hi &= (int)0x7fffffff;
+				$hi += 0x80000000;
+			}
+			
+			if ($lo & (int)0x80000000) {
+				$lo &= (int)0x7fffffff;
+				$lo += 0x80000000;
+			}
+			
+			$value = $hi * 4294967296 + $lo;
+			
+			if ($isNeg) {
+				$value = 0 - $value;
+			}
+		} else {
+			if ($arr[2] & 0x80000000) {
+				$arr[2] = $arr[2] & 0xffffffff;
+			}
+			
+			if ($arr[1] & 0x80000000) {
+				$arr[1] = $arr[1] & 0xffffffff;
+				$arr[1] = $arr[1] ^ 0xffffffff;
+				$arr[2] = $arr[2] ^ 0xffffffff;
+				$value = 0 - $arr[1]*4294967296 - $arr[2] - 1;
+			} else {
+				$value = $arr[1]*4294967296 + $arr[2];
+			}
+		}
+
+		return $value;
+	}
+
 
 	/**
 	 * @param array $type
