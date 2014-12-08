@@ -48,6 +48,10 @@ class Database {
 	private $batchQueryData = [];
 
 	/**
+	 * @var int
+	 */	private $key_index = 0;
+	
+	/**
 	 * @param array $nodes
 	 * @param string $keyspace
 	 * @param array $options
@@ -131,7 +135,7 @@ class Database {
 		$valuesModified = false;
 		foreach($values as $key => $value) {
 			if (is_string($key) && isset($this->batchQueryData[$key])) {
-				$newFieldName = $key . self::POSTFIX_DUPLICATE_QUERY_VARIABLE;
+				$newFieldName = $key . "_" . ++$this->key_index;
 				$cql = str_replace(":{$key}", ":{$newFieldName}", $cql);
 				unset($values[$key]);
 				$values[$newFieldName] = $value;
